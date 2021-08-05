@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,7 +13,7 @@ import (
 	"github.com/hysios/broker/session"
 	mptls "github.com/hysios/broker/tls"
 	"github.com/hysios/broker/websocket"
-	mflog "github.com/hysios/log"
+	"github.com/hysios/log"
 )
 
 const (
@@ -90,10 +89,9 @@ type config struct {
 
 func main() {
 	var (
-		cfg    = loadConfig()
-		logger = mflog.NewLogger()
-		h      = New(logger)
-		errs   = make(chan error, 3)
+		cfg  = loadConfig()
+		h    = New()
+		errs = make(chan error, 3)
 	)
 
 	if cfg.clientTLS {
@@ -103,19 +101,19 @@ func main() {
 		}
 
 		// WSS
-		logger.Info(fmt.Sprintf("Starting encrypted WebSocket proxy on port %s ", cfg.wssPort))
-		go proxyWSS(cfg, tlsCfg, logger, h, errs)
+		log.Info(fmt.Sprintf("Starting encrypted WebSocket proxy on port %s ", cfg.wssPort))
+		go proxyWSS(cfg, tlsCfg, h, errs)
 		// MQTTS
-		logger.Info(fmt.Sprintf("Starting MQTTS proxy on port %s ", cfg.mqttsPort))
-		go proxyMQTTS(cfg, tlsCfg, logger, h, errs)
+		log.Info(fmt.Sprintf("Starting MQTTS proxy on port %s ", cfg.mqttsPort))
+		go proxyMQTTS(cfg, tlsCfg, h, errs)
 	} else {
 		// WS
-		logger.Info(fmt.Sprintf("Starting WebSocket proxy on port %s ", cfg.wsPort))
-		go proxyWS(cfg, logger, h, errs)
+		log.Info(fmt.Sprintf("Starting WebSocket proxy on port %s ", cfg.wsPort))
+		go proxyWS(cfg, h, errs)
 
 		// MQTT
-		logger.Info(fmt.Sprintf("Starting MQTT proxy on port %s ", cfg.mqttPort))
-		go proxyMQTT(cfg, logger, h, errs)
+		log.Info(fmt.Sprintf("Starting MQTT proxy on port %s ", cfg.mqttPort))
+		go proxyMQTT(cfg, h, errs)
 	}
 
 	go func() {
@@ -125,7 +123,7 @@ func main() {
 	}()
 
 	var err = <-errs
-	logger.Error(fmt.Sprintf("mProxy terminated: %s", err))
+	log.Error(fmt.Sprintf("mProxy terminated: %s", err))
 }
 
 func env(key, fallback string) string {
@@ -170,33 +168,33 @@ func loadConfig() config {
 	}
 }
 
-func proxyWS(cfg config, logger *mflog.Sugar, handler session.Handler, errs chan error) {
+func proxyWS(cfg config, handler session.Handler, errs chan error) {
 	target := fmt.Sprintf("%s:%s", cfg.wsTargetHost, cfg.wsTargetPort)
-	wp := websocket.New(target, cfg.wsTargetPath, cfg.wsTargetScheme, handler, logger)
+	wp := websocket.New(target, cfg.wsTargetPath, cfg.wsTargetScheme, handler)
 	http.Handle(cfg.wsPath, wp.Handler())
 
 	errs <- wp.Listen(cfg.wsPort)
 }
 
-func proxyWSS(cfg config, tlsCfg *tls.Config, logger *mflog.Sugar, handler session.Handler, errs chan error) {
+func proxyWSS(cfg config, tlsCfg *tls.Config, handler session.Handler, errs chan error) {
 	target := fmt.Sprintf("%s:%s", cfg.wsTargetHost, cfg.wsTargetPort)
-	wp := websocket.New(target, cfg.wsTargetPath, cfg.wsTargetScheme, handler, logger)
+	wp := websocket.New(target, cfg.wsTargetPath, cfg.wsTargetScheme, handler)
 	http.Handle(cfg.wssPath, wp.Handler())
 	errs <- wp.ListenTLS(tlsCfg, cfg.serverCert, cfg.serverKey, cfg.wssPort)
 }
 
-func proxyMQTT(cfg config, logger *mflog.Sugar, handler session.Handler, errs chan error) {
+func proxyMQTT(cfg config, handler session.Handler, errs chan error) {
 	address := fmt.Sprintf("%s:%s", cfg.mqttHost, cfg.mqttPort)
 	target := fmt.Sprintf("%s:%s", cfg.mqttTargetHost, cfg.mqttTargetPort)
-	mp := broker.New(address, target, handler, logger)
+	mp := broker.New(address, target, handler)
 
 	errs <- mp.Listen()
 }
 
-func proxyMQTTS(cfg config, tlsCfg *tls.Config, logger *mflog.Sugar, handler session.Handler, errs chan error) {
+func proxyMQTTS(cfg config, tlsCfg *tls.Config, handler session.Handler, errs chan error) {
 	address := fmt.Sprintf("%s:%s", cfg.mqttHost, cfg.mqttsPort)
 	target := fmt.Sprintf("%s:%s", cfg.mqttTargetHost, cfg.mqttTargetPort)
-	mp := broker.New(address, target, handler, logger)
+	mp := broker.New(address, target, handler)
 
 	errs <- mp.ListenTLS(tlsCfg)
 }

@@ -6,7 +6,6 @@ import (
 	"net"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
-	logger "github.com/hysios/log"
 	"github.com/pkg/errors"
 )
 
@@ -24,7 +23,6 @@ type direction int
 
 // Session represents MQTT Proxy session between client and broker.
 type Session struct {
-	logger   *logger.Sugar
 	inbound  net.Conn
 	outbound net.Conn
 	handler  Handler
@@ -32,9 +30,8 @@ type Session struct {
 }
 
 // New creates a new Session.
-func New(inbound, outbound net.Conn, handler Handler, logger *logger.Sugar, cert x509.Certificate) *Session {
+func New(inbound, outbound net.Conn, handler Handler, cert x509.Certificate) *Session {
 	return &Session{
-		logger:   logger,
 		inbound:  inbound,
 		outbound: outbound,
 		handler:  handler,

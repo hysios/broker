@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/hysios/broker/session"
 	mptls "github.com/hysios/broker/tls"
-	logger "github.com/hysios/log"
+	"github.com/hysios/log"
 )
 
 // Proxy represents WS Proxy.
@@ -19,17 +19,15 @@ type Proxy struct {
 	path   string
 	scheme string
 	event  session.Handler
-	logger *logger.Sugar
 }
 
 // New - creates new WS proxy
-func New(target, path, scheme string, event session.Handler, logger *logger.Sugar) *Proxy {
+func New(target, path, scheme string, event session.Handler) *Proxy {
 	return &Proxy{
 		target: target,
 		path:   path,
 		scheme: scheme,
 		event:  event,
-		logger: logger,
 	}
 }
 
@@ -53,7 +51,7 @@ func (p Proxy) handle() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cconn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			p.logger.Error("Error upgrading connection " + err.Error())
+			log.Error("Error upgrading connection " + err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -77,7 +75,7 @@ func (p Proxy) pass(in *websocket.Conn) {
 	srv, _, err := dialer.Dial(url.String(), nil)
 
 	if err != nil {
-		p.logger.Error("Unable to connect to broker: " + err.Error())
+		log.Error("Unable to connect to broker: " + err.Error())
 		return
 	}
 
@@ -90,14 +88,14 @@ func (p Proxy) pass(in *websocket.Conn) {
 
 	clientCert, err := mptls.ClientCert(in.UnderlyingConn())
 	if err != nil {
-		p.logger.Error("Failed to get client certificate: " + err.Error())
+		log.Error("Failed to get client certificate: " + err.Error())
 		return
 	}
 
-	session := session.New(c, s, p.event, p.logger, clientCert)
+	session := session.New(c, s, p.event, clientCert)
 	err = session.Stream()
 	errc <- err
-	p.logger.Warn("Broken connection for client: " + session.Client.ID + " with error: " + err.Error())
+	log.Warn("Broken connection for client: " + session.Client.ID + " with error: " + err.Error())
 }
 
 // Listen of the server
